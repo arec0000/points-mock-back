@@ -23,7 +23,9 @@ export class AuthController {
     @Body() dto: AuthDto,
     @Res({ passthrough: true }) res: Response,
   ) {
-    if (dto.email && dto.code) {
+    if (dto.email) {
+      const response = await this.authService.devSignIn(res, dto.email);
+      return response.send("ok");
     }
 
     if (dto.googleCode) {

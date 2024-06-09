@@ -15,6 +15,20 @@ export class AuthService {
     private readonly googleService: GoogleService,
   ) {}
 
+  async devSignIn(res: Response, email: string) {
+    let user = await this.userService.getByEmail(email);
+
+    if (!user) {
+      user = await this.userService.create({ email });
+    }
+
+    const accessToken = await this.issueToken(user.id);
+
+    this.addTokenToResponse(res, accessToken);
+
+    return res;
+  }
+
   async signInWithGoogle(res: Response, token: string) {
     const googleUserData = await this.googleService.getUserData(token);
 
