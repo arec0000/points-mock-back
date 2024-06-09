@@ -1,0 +1,67 @@
+version: "3.8"
+
+services:
+  db:
+    image: postgres:14.1-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: ${DATABASE_USERNAME}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
+      POSTGRES_DB: ${DATABASE_NAME}
+    command: "postgres -c port=5432"
+    volumes:
+      - db:/var/lib/postgresql/data
+    ports:
+      - ${DATABASE_PORT}:5432
+
+  minio:
+    image: minio/minio:latest
+    entrypoint: sh
+    ports:
+      - ${MINIO_PORT}:9000
+      - ${MINIO_CONSOLE_PORT}:9001
+    command: -c 'minio server --console-address ":9001" /data'
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  createbuckets:
+    image: minio/mc
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      /usr/bin/mc alias set s3 http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD};
+      /usr/bin/mc mb s3/${S3_IMAGES_BUCKET};
+      /use/bin/mc anonymus set public s3/${S3_IMAGES_BUCKET};
+      exit 0;
+      "
+
+  auth-server:
+    build: .
+    ports:
+      - ${PORT}:4200
+    environment:
+      PREFIX: ${PREFIX}
+      PORT: 4200
+      ORIGIN: ${ORIGIN}
+      DATABASE_URL: postgresql://${DATABASE_USERNAME}:${DATABASE_PASSWORD}@db:${DATABASE_PORT}/${DATABASE_NAME}?schema=public
+      JWT_SECRET: ${JWT_SECRET}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
+      S3_IMAGES_BUCKET: ${S3_IMAGES_BUCKET}
+      S3_ENDPOINT: ${S3_ENDPOINT}
+    depends_on:
+      - db
+      - minio
+
+volumes:
+  db:
+  minio-data:
